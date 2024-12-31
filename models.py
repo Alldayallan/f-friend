@@ -84,7 +84,18 @@ class User(UserMixin, db.Model):
 
     def get_match_score(self, other_user):
         """Calculate match score with another user based on various factors"""
-        score = 0
+        scores = {
+            'location': 0.0,
+            'interests': 0.0,
+            'activities': 0.0,
+            'availability': 0.0
+        }
+        weights = {
+            'location': 0.35,  # Location is important but not overwhelming
+            'interests': 0.30,  # Shared interests are key for compatibility
+            'activities': 0.20,  # Activity preferences
+            'availability': 0.15  # Scheduling compatibility
+        }
 
         # Location proximity score (if both users have location data)
         if self.latitude and self.longitude and other_user.latitude and other_user.longitude:
@@ -93,50 +104,75 @@ class User(UserMixin, db.Model):
                 other_user.latitude, other_user.longitude
             )
             # Convert distance to a 0-1 score (closer = higher score)
-            location_score = max(0, 1 - (distance / 100))  # 100km as max distance
-            score += location_score * 0.3  # 30% weight for location
+            # Using exponential decay for more natural distance scoring
+            scores['location'] = math.exp(-distance / 50)  # 50km as the decay factor
 
-        # Interest matching score
+        # Interest matching score using more sophisticated comparison
         if self.interests and other_user.interests:
             my_interests = set(self.interests.lower().split(','))
             their_interests = set(other_user.interests.lower().split(','))
-            common_interests = len(my_interests.intersection(their_interests))
-            total_interests = len(my_interests.union(their_interests))
-            interest_score = common_interests / total_interests if total_interests > 0 else 0
-            score += interest_score * 0.3  # 30% weight for interests
 
-        # Activity preference matching
+            if my_interests and their_interests:
+                # Calculate Jaccard similarity for interests
+                common_interests = len(my_interests.intersection(their_interests))
+                total_interests = len(my_interests.union(their_interests))
+                scores['interests'] = common_interests / total_interests if total_interests > 0 else 0
+
+                # Boost score if there are multiple common interests
+                if common_interests > 2:
+                    scores['interests'] *= 1.2  # 20% boost for having more than 2 common interests
+
+        # Activity preference matching with preference weighting
         if self.activities and other_user.activities:
             my_activities = set(self.activities.lower().split(','))
             their_activities = set(other_user.activities.lower().split(','))
-            common_activities = len(my_activities.intersection(their_activities))
-            total_activities = len(my_activities.union(their_activities))
-            activity_score = common_activities / total_activities if total_activities > 0 else 0
-            score += activity_score * 0.2  # 20% weight for activities
 
-        # Availability matching
+            if my_activities and their_activities:
+                # Calculate weighted activity match score
+                common_activities = len(my_activities.intersection(their_activities))
+                total_activities = len(my_activities.union(their_activities))
+                base_score = common_activities / total_activities if total_activities > 0 else 0
+
+                # Apply activity preference bonus
+                if common_activities >= 3:
+                    scores['activities'] = min(1.0, base_score * 1.3)  # 30% bonus for 3+ shared activities
+                else:
+                    scores['activities'] = base_score
+
+        # Availability matching with time slot analysis
         if self.availability and other_user.availability:
-            availability_score = 1.0 if self.availability == other_user.availability else 0.5
-            score += availability_score * 0.2  # 20% weight for availability
+            # Split availability into time slots
+            my_slots = set(slot.strip() for slot in self.availability.lower().split(','))
+            their_slots = set(slot.strip() for slot in other_user.availability.lower().split(','))
 
-        return round(score, 2)
+            if my_slots and their_slots:
+                # Calculate overlap ratio with preference for multiple matching slots
+                common_slots = len(my_slots.intersection(their_slots))
+                total_slots = len(my_slots.union(their_slots))
 
-    def _calculate_distance(self, lat1, lon1, lat2, lon2):
-        """Calculate distance between two points using Haversine formula"""
-        R = 6371  # Earth's radius in kilometers
+                if common_slots > 0:
+                    base_score = common_slots / total_slots
+                    # Bonus for having multiple matching time slots
+                    scores['availability'] = min(1.0, base_score * (1 + 0.1 * common_slots))
+                else:
+                    scores['availability'] = 0
 
-        lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
-        dlat = lat2 - lat1
-        dlon = lon2 - lon1
+        # Calculate weighted total score
+        total_score = sum(scores[k] * weights[k] for k in scores.keys())
 
-        a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon/2)**2
-        c = 2 * math.asin(math.sqrt(a))
-        return R * c
+        # Normalize to ensure score is between 0 and 1
+        total_score = min(1.0, total_score)
+
+        return {
+            'total': round(total_score, 2),
+            'details': {k: round(v, 2) for k, v in scores.items()}
+        }
 
     def get_friend_suggestions(self, limit=10, filters=None):
         """Get friend suggestions sorted by match score with optional filters"""
         query = User.query.filter(
-            User.id != self.id
+            User.id != self.id,
+            ~User.id.in_([f.id for f in self.friends])
         )
 
         if filters:
@@ -150,7 +186,7 @@ class User(UserMixin, db.Model):
                     )
                 )
 
-            # Apply age filter
+            # Apply age filter with range
             if filters.get('min_age'):
                 query = query.filter(User.age >= filters['min_age'])
             if filters.get('max_age'):
@@ -168,25 +204,26 @@ class User(UserMixin, db.Model):
 
             # Apply distance filter if coordinates are available
             if filters.get('max_distance') and self.latitude and self.longitude:
-                # This is a simplified approach, for more accurate results 
-                # we should use PostGIS or a proper geospatial query
-                lat_range = filters['max_distance'] / 111  # roughly kilometers to degrees
-                lng_range = filters['max_distance'] / (111 * math.cos(math.radians(self.latitude)))
+                max_distance = float(filters['max_distance'])
+                # Calculate rough bounding box for initial filtering
+                lat_range = max_distance / 111  # roughly kilometers to degrees
+                lng_range = max_distance / (111 * math.cos(math.radians(self.latitude)))
 
                 query = query.filter(
                     User.latitude.between(self.latitude - lat_range, self.latitude + lat_range),
                     User.longitude.between(self.longitude - lng_range, self.longitude + lng_range)
                 )
 
-        potential_friends = query.all()
+        # Get potential matches after filtering
+        potential_matches = query.all()
 
-        # Calculate scores for filtered matches
-        scored_matches = [
-            (user, self.get_match_score(user))
-            for user in potential_friends
-        ]
+        # Calculate detailed match scores for each potential match
+        scored_matches = []
+        for user in potential_matches:
+            match_result = self.get_match_score(user)
+            scored_matches.append((user, match_result['total'], match_result['details']))
 
-        # Sort by score and return top matches
+        # Sort by total score and return top matches
         scored_matches.sort(key=lambda x: x[1], reverse=True)
         return scored_matches[:limit]
 
@@ -222,6 +259,18 @@ class User(UserMixin, db.Model):
             user.friends.remove(self)
             return True
         return False
+
+    def _calculate_distance(self, lat1, lon1, lat2, lon2):
+        """Calculate distance between two points using Haversine formula"""
+        R = 6371  # Earth's radius in kilometers
+
+        lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
+        dlat = lat2 - lat1
+        dlon = lon2 - lon1
+
+        a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon/2)**2
+        c = 2 * math.asin(math.sqrt(a))
+        return R * c
 
 class UserMatch(db.Model):
     id = db.Column(db.Integer, primary_key=True)
