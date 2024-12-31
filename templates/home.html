@@ -4,239 +4,191 @@
 
 {% block styles %}
 <style>
-:root {
-    --sidebar-width: 280px;
-}
-
+/* Minimal custom CSS, using Bootstrap's dark theme variables */
 .sidebar {
-    width: var(--sidebar-width);
+    width: 280px;
     height: 100vh;
     position: fixed;
-    padding: 1.5rem;
-    background-color: var(--bs-dark);
-    border-right: 1px solid var(--bs-border-color);
+    background-color: var(--bs-dark-bg-subtle);
+    border-right: 1px solid var(--bs-border-subtle);
 }
 
 .main-content {
-    margin-left: var(--sidebar-width);
-    padding: 1.5rem;
+    margin-left: 280px;
 }
 
 .nav-link {
-    color: var(--bs-gray-400);
-    padding: 0.8rem 1rem;
-    border-radius: 0.5rem;
-    margin-bottom: 0.5rem;
-    transition: all 0.3s ease;
-    display: flex;
-    align-items: center;
+    transition: all 0.2s ease;
 }
 
-.nav-link:hover {
-    background-color: var(--bs-gray-800);
-    color: var(--bs-light);
-}
-
-.nav-link.active {
-    background-color: var(--bs-primary);
-    color: var(--bs-light);
-}
-
-.nav-link i {
-    margin-right: 0.75rem;
-    font-size: 1.2rem;
-}
-
-.post-composer {
-    background-color: var(--bs-dark);
-    border: 1px solid var(--bs-border-color);
-    border-radius: 1rem;
-    padding: 1.5rem;
-    margin-bottom: 1.5rem;
-}
-
-.post-actions {
-    display: flex;
-    gap: 1rem;
-    margin-top: 1rem;
-    padding-top: 1rem;
-    border-top: 1px solid var(--bs-border-color);
-}
-
-.post-actions button {
-    padding: 0.5rem 1rem;
-    border-radius: 0.5rem;
-    background: transparent;
-    border: none;
-    color: var(--bs-gray-500);
-    transition: all 0.3s ease;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.post-actions button:hover {
-    background-color: var(--bs-gray-800);
-    color: var(--bs-light);
-}
-
-.feed-item {
-    background-color: var(--bs-dark);
-    border: 1px solid var(--bs-border-color);
-    border-radius: 1rem;
-    padding: 1.5rem;
-    margin-bottom: 1rem;
-}
-
-.suggestions-container {
-    position: fixed;
-    width: 300px;
-    right: 1.5rem;
-    top: 1.5rem;
-    padding: 1.5rem;
-    background-color: var(--bs-dark);
-    border: 1px solid var(--bs-border-color);
-    border-radius: 1rem;
+.nav-link:not(.active):hover {
+    background-color: var(--bs-dark-bg-subtle);
 }
 
 .user-avatar {
     width: 40px;
     height: 40px;
-    border-radius: 50%;
     object-fit: cover;
-}
-
-.user-avatar-placeholder {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background-color: var(--bs-primary);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--bs-light);
-    font-weight: bold;
 }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="d-flex">
+<div class="d-flex min-vh-100">
     <!-- Left Sidebar -->
-    <div class="sidebar">
-        <h4 class="mb-4">Geo Friender</h4>
-        <nav class="nav flex-column">
-            <a href="{{ url_for('home') }}" class="nav-link active">
-                <i class="bi bi-house-door"></i> Home
+    <aside class="sidebar px-4 py-3">
+        <div class="d-flex align-items-center mb-4">
+            <h4 class="m-0">Geo Friender</h4>
+        </div>
+
+        <nav class="nav flex-column gap-1">
+            <a href="{{ url_for('home') }}" class="nav-link rounded active d-flex align-items-center">
+                <i class="bi bi-house-door fs-5 me-3"></i>
+                <span>Home</span>
             </a>
-            <a href="{{ url_for('notifications') }}" class="nav-link">
-                <i class="bi bi-bell"></i> Notifications
+            <a href="{{ url_for('notifications') }}" class="nav-link rounded d-flex align-items-center justify-content-between">
+                <div>
+                    <i class="bi bi-bell fs-5 me-3"></i>
+                    <span>Notifications</span>
+                </div>
                 {% if current_user.unread_notifications %}
-                    <span class="badge bg-danger ms-auto">{{ current_user.unread_notifications|length }}</span>
+                    <span class="badge bg-danger">{{ current_user.unread_notifications|length }}</span>
                 {% endif %}
             </a>
-            <a href="{{ url_for('messages') }}" class="nav-link">
-                <i class="bi bi-chat"></i> Messages
+            <a href="{{ url_for('messages') }}" class="nav-link rounded d-flex align-items-center justify-content-between">
+                <div>
+                    <i class="bi bi-chat fs-5 me-3"></i>
+                    <span>Messages</span>
+                </div>
                 {% if current_user.get_unread_messages_count() > 0 %}
-                    <span class="badge bg-danger ms-auto">{{ current_user.get_unread_messages_count() }}</span>
+                    <span class="badge bg-danger">{{ current_user.get_unread_messages_count() }}</span>
                 {% endif %}
             </a>
-            <a href="{{ url_for('my_friends') }}" class="nav-link">
-                <i class="bi bi-people"></i> Friends
+            <a href="{{ url_for('my_friends') }}" class="nav-link rounded d-flex align-items-center">
+                <i class="bi bi-people fs-5 me-3"></i>
+                <span>Friends</span>
             </a>
-            <a href="{{ url_for('friend_suggestions') }}" class="nav-link">
-                <i class="bi bi-search"></i> Discover
+            <a href="{{ url_for('friend_suggestions') }}" class="nav-link rounded d-flex align-items-center">
+                <i class="bi bi-search fs-5 me-3"></i>
+                <span>Discover</span>
             </a>
-            <a href="{{ url_for('groups') }}" class="nav-link">
-                <i class="bi bi-collection"></i> Groups
+            <a href="{{ url_for('groups') }}" class="nav-link rounded d-flex align-items-center">
+                <i class="bi bi-collection fs-5 me-3"></i>
+                <span>Groups</span>
             </a>
-            <a href="{{ url_for('profile') }}" class="nav-link">
-                <i class="bi bi-person"></i> Profile
+            <a href="{{ url_for('profile') }}" class="nav-link rounded d-flex align-items-center">
+                <i class="bi bi-person fs-5 me-3"></i>
+                <span>Profile</span>
             </a>
         </nav>
+
         <button class="btn btn-primary w-100 mt-4">
-            <i class="bi bi-plus-lg me-2"></i> New Post
+            <i class="bi bi-plus-lg me-2"></i>
+            New Post
         </button>
-    </div>
+    </aside>
 
     <!-- Main Content -->
-    <div class="main-content flex-grow-1">
+    <main class="main-content flex-grow-1 py-3 px-4">
         <!-- Post Composer -->
-        <div class="post-composer">
-            <div class="d-flex gap-3">
-                {% if current_user.profile_picture %}
-                    <img src="{{ current_user.profile_picture }}" alt="{{ current_user.username }}" class="user-avatar">
-                {% else %}
-                    <div class="user-avatar-placeholder">
-                        {{ current_user.username[0] | upper }}
-                    </div>
-                {% endif %}
-                <textarea class="form-control bg-dark border-0" rows="3" placeholder="What's on your mind?"></textarea>
-            </div>
-            <div class="post-actions">
-                <button>
-                    <i class="bi bi-image"></i>
-                    <span>Photo</span>
-                </button>
-                <button>
-                    <i class="bi bi-geo-alt"></i>
-                    <span>Location</span>
-                </button>
-                <button>
-                    <i class="bi bi-emoji-smile"></i>
-                    <span>Feeling</span>
-                </button>
-                <button class="btn btn-primary ms-auto">Post</button>
+        <div class="card bg-dark-subtle border-0 rounded-4 mb-4">
+            <div class="card-body p-4">
+                <div class="d-flex gap-3">
+                    {% if current_user.profile_picture %}
+                        <img src="{{ current_user.profile_picture }}" 
+                             alt="{{ current_user.username }}" 
+                             class="user-avatar rounded-circle">
+                    {% else %}
+                        <div class="user-avatar rounded-circle bg-primary d-flex align-items-center justify-content-center">
+                            <span class="text-white fw-bold">{{ current_user.username[0] | upper }}</span>
+                        </div>
+                    {% endif %}
+                    <textarea class="form-control bg-dark border-0" 
+                              rows="3" 
+                              placeholder="What's on your mind?"></textarea>
+                </div>
+                <div class="d-flex gap-3 mt-3 pt-3 border-top border-secondary">
+                    <button class="btn btn-link text-decoration-none">
+                        <i class="bi bi-image me-2"></i>
+                        Photo
+                    </button>
+                    <button class="btn btn-link text-decoration-none">
+                        <i class="bi bi-geo-alt me-2"></i>
+                        Location
+                    </button>
+                    <button class="btn btn-link text-decoration-none">
+                        <i class="bi bi-emoji-smile me-2"></i>
+                        Feeling
+                    </button>
+                    <button class="btn btn-primary ms-auto px-4">Post</button>
+                </div>
             </div>
         </div>
 
         <!-- Feed -->
         <div class="feed">
             {% for friend in current_user.friends %}
-                <div class="feed-item">
-                    <div class="d-flex gap-3 align-items-center mb-3">
-                        {% if friend.profile_picture %}
-                            <img src="{{ friend.profile_picture }}" alt="{{ friend.username }}" class="user-avatar">
-                        {% else %}
-                            <div class="user-avatar-placeholder">
-                                {{ friend.username[0] | upper }}
+                <div class="card bg-dark-subtle border-0 rounded-4 mb-3">
+                    <div class="card-body p-4">
+                        <div class="d-flex gap-3 align-items-center mb-3">
+                            {% if friend.profile_picture %}
+                                <img src="{{ friend.profile_picture }}" 
+                                     alt="{{ friend.username }}" 
+                                     class="user-avatar rounded-circle">
+                            {% else %}
+                                <div class="user-avatar rounded-circle bg-primary d-flex align-items-center justify-content-center">
+                                    <span class="text-white fw-bold">{{ friend.username[0] | upper }}</span>
+                                </div>
+                            {% endif %}
+                            <div>
+                                <h6 class="mb-1">{{ friend.username }}</h6>
+                                <small class="text-secondary">
+                                    {{ friend.last_active.strftime('%Y-%m-%d %H:%M') if friend.last_active else 'Never' }}
+                                </small>
                             </div>
-                        {% endif %}
-                        <div>
-                            <h6 class="mb-0">{{ friend.username }}</h6>
-                            <small class="text-muted">
-                                {{ friend.last_active.strftime('%Y-%m-%d %H:%M') if friend.last_active else 'Never' }}
-                            </small>
                         </div>
+                        <p class="card-text text-body">{{ friend.bio if friend.bio else 'No bio available.' }}</p>
                     </div>
-                    <p class="mb-0">{{ friend.bio if friend.bio else 'No bio available.' }}</p>
                 </div>
             {% endfor %}
         </div>
-    </div>
+    </main>
 
     <!-- Right Sidebar -->
-    <div class="suggestions-container">
-        <h5 class="mb-3">Suggested Friends</h5>
-        {% for suggestion, score in current_user.get_friend_suggestions()[:5] %}
-            <div class="d-flex gap-3 align-items-center mb-3">
-                {% if suggestion.profile_picture %}
-                    <img src="{{ suggestion.profile_picture }}" alt="{{ suggestion.username }}" class="user-avatar">
-                {% else %}
-                    <div class="user-avatar-placeholder">
-                        {{ suggestion.username[0] | upper }}
+    <aside class="position-fixed end-0 p-4" style="width: 320px;">
+        <div class="card bg-dark-subtle border-0 rounded-4">
+            <div class="card-body p-4">
+                <h5 class="card-title mb-3">Suggested Friends</h5>
+                {% for suggestion, score in current_user.get_friend_suggestions()[:5] %}
+                    <div class="d-flex gap-3 align-items-center mb-3">
+                        {% if suggestion.profile_picture %}
+                            <img src="{{ suggestion.profile_picture }}" 
+                                 alt="{{ suggestion.username }}" 
+                                 class="user-avatar rounded-circle">
+                        {% else %}
+                            <div class="user-avatar rounded-circle bg-primary d-flex align-items-center justify-content-center">
+                                <span class="text-white fw-bold">{{ suggestion.username[0] | upper }}</span>
+                            </div>
+                        {% endif %}
+                        <div class="flex-grow-1">
+                            <h6 class="mb-1">{{ suggestion.username }}</h6>
+                            <small class="text-secondary">{{ score * 100 | round }}% match</small>
+                        </div>
+                        <form action="{{ url_for('send_friend_request', user_id=suggestion.id) }}" 
+                              method="POST" 
+                              class="ms-auto">
+                            <button type="submit" class="btn btn-outline-primary btn-sm">
+                                Connect
+                            </button>
+                        </form>
                     </div>
-                {% endif %}
-                <div class="flex-grow-1">
-                    <h6 class="mb-0">{{ suggestion.username }}</h6>
-                    <small class="text-muted">{{ score * 100 | round }}% match</small>
-                </div>
-                <form action="{{ url_for('send_friend_request', user_id=suggestion.id) }}" method="POST" style="display: inline;">
-                    <button type="submit" class="btn btn-outline-primary btn-sm">Connect</button>
-                </form>
+                {% endfor %}
+                <a href="{{ url_for('friend_suggestions') }}" 
+                   class="btn btn-link text-decoration-none w-100">
+                    See all suggestions
+                </a>
             </div>
-        {% endfor %}
-        <a href="{{ url_for('friend_suggestions') }}" class="btn btn-link text-decoration-none w-100">See all suggestions</a>
-    </div>
+        </div>
+    </aside>
 </div>
 {% endblock %}
