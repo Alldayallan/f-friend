@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+
+{% block title %}Friend Suggestions{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Search & Filters</h5>
+                </div>
+                <div class="card-body">
+                    <form method="GET" action="{{ url_for('friend_suggestions') }}" class="row g-3">
+                        <div class="col-md-4">
+                            <label for="search" class="form-label">Search</label>
+                            <input type="text" class="form-control" id="search" name="search" 
+                                   placeholder="Username or Location" value="{{ current_filters.get('search', '') }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Age Range</label>
+                            <div class="d-flex gap-2">
+                                <input type="number" class="form-control" name="min_age" 
+                                       placeholder="Min" min="18" max="100" 
+                                       value="{{ current_filters.get('min_age', '') }}">
+                                <input type="number" class="form-control" name="max_age" 
+                                       placeholder="Max" min="18" max="100"
+                                       value="{{ current_filters.get('max_age', '') }}">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="max_distance" class="form-label">Max Distance (km)</label>
+                            <input type="number" class="form-control" id="max_distance" name="max_distance" 
+                                   placeholder="Distance in km" min="1"
+                                   value="{{ current_filters.get('max_distance', '') }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="activity" class="form-label">Activity</label>
+                            <input type="text" class="form-control" id="activity" name="activity" 
+                                   placeholder="Search activities" value="{{ current_filters.get('activity', '') }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="interest" class="form-label">Interest</label>
+                            <input type="text" class="form-control" id="interest" name="interest" 
+                                   placeholder="Search interests" value="{{ current_filters.get('interest', '') }}">
+                        </div>
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-search"></i> Apply Filters
+                            </button>
+                            <a href="{{ url_for('friend_suggestions') }}" class="btn btn-outline-secondary">
+                                <i class="bi bi-x-circle"></i> Clear Filters
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <h2 class="mb-4">Friend Suggestions</h2>
+
+    {% if not matches %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i>
+            No friend suggestions available at the moment. Try updating your profile with more information!
+        </div>
+    {% else %}
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+            {% for match in matches %}
+                <div class="col">
+                    <div class="card h-100 animate__animated animate__fadeIn">
+                        <div class="position-absolute top-0 end-0 p-2">
+                            <span class="badge bg-primary">{{ (match.scores.total * 100)|round }}% Match</span>
+                            {% if current_user.is_friend_with(match.user) %}
+                                <span class="badge bg-success ms-1">Connected</span>
+                            {% endif %}
+                        </div>
+
+                        {% if match.user.profile_picture %}
+                            <img src="{{ match.user.profile_picture }}" class="card-img-top" alt="Profile picture" style="height: 200px; object-fit: cover;">
+                        {% else %}
+                            <div class="card-img-top bg-secondary d-flex align-items-center justify-content-center" style="height: 200px;">
+                                <i class="bi bi-person-fill" style="font-size: 4rem; color: white;"></i>
+                            </div>
+                        {% endif %}
+
+                        <div class="card-body">
+                            <h5 class="card-title">{{ match.user.username }}</h5>
+
+                            {% if match.user.age and match.user.privacy_settings.get('age_visible', True) %}
+                                <p class="card-text"><i class="bi bi-calendar"></i> {{ match.user.age }} years old</p>
+                            {% endif %}
+
+                            {% if match.user.location and match.user.privacy_settings.get('location_visible', True) %}
+                                <p class="card-text"><i class="bi bi-geo-alt"></i> {{ match.user.location }}</p>
+                            {% endif %}
+
+                            {% if match.user.looking_for %}
+                                <p class="card-text">
+                                    <i class="bi bi-search-heart"></i> Looking for: {{ match.user.looking_for | replace('_', ' ') | title }}
+                                </p>
+                            {% endif %}
+
+                            {% if match.user.availability and match.user.privacy_settings.get('availability_visible', True) %}
+                                <p class="card-text">
+                                    <i class="bi bi-clock"></i> Available: {{ match.user.availability | title }}
+                                </p>
+                            {% endif %}
+
+                            <!-- Match Score Details -->
+                            <div class="card-text mt-3">
+                                <h6 class="mb-2">Compatibility Scores</h6>
+                                <div class="progress mb-2" style="height: 8px;">
+                                    <div class="progress-bar bg-success" role="progressbar" 
+                                         style="width: {{ (match.scores.activity * 100)|round }}%"
+                                         title="Activity Match">
+                                    </div>
+                                </div>
+                                <small class="text-muted d-block">Activity Match: {{ (match.scores.activity * 100)|round }}%</small>
+
+                                <div class="progress mb-2" style="height: 8px;">
+                                    <div class="progress-bar bg-info" role="progressbar" 
+                                         style="width: {{ (match.scores.distance * 100)|round }}%"
+                                         title="Location Match">
+                                    </div>
+                                </div>
+                                <small class="text-muted d-block">Location Match: {{ (match.scores.distance * 100)|round }}%</small>
+
+                                <div class="progress mb-2" style="height: 8px;">
+                                    <div class="progress-bar bg-warning" role="progressbar" 
+                                         style="width: {{ (match.scores.availability * 100)|round }}%"
+                                         title="Schedule Match">
+                                    </div>
+                                </div>
+                                <small class="text-muted d-block">Schedule Match: {{ (match.scores.availability * 100)|round }}%</small>
+                            </div>
+
+                            {% if match.user.interests and match.user.privacy_settings.get('interests_visible', True) %}
+                                <div class="card-text mt-3">
+                                    <h6><i class="bi bi-heart-fill"></i> Interests</h6>
+                                    <div class="d-flex flex-wrap gap-1">
+                                        {% for interest in match.user.interests.split(',') %}
+                                            <span class="badge bg-info">{{ interest.strip() }}</span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            {% endif %}
+
+                            {% if match.user.activities and match.user.privacy_settings.get('activities_visible', True) %}
+                                <div class="card-text mt-3">
+                                    <h6><i class="bi bi-activity"></i> Activities</h6>
+                                    <div class="d-flex flex-wrap gap-1">
+                                        {% for activity in match.user.activities.split(',') %}
+                                            <span class="badge bg-success">{{ activity.strip() }}</span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="card-footer bg-transparent border-top-0">
+                            <div class="d-grid gap-2">
+                                {% if current_user.is_friend_with(match.user) %}
+                                    <a href="{{ url_for('chat', user_id=match.user.id) }}" class="btn btn-primary btn-sm w-100">
+                                        <i class="bi bi-chat-dots"></i> Send Message
+                                    </a>
+                                {% else %}
+                                    <form action="{{ url_for('send_friend_request', user_id=match.user.id) }}" method="POST">
+                                        <button type="submit" class="btn btn-outline-success btn-sm w-100 connect-btn">
+                                            <i class="bi bi-person-plus"></i> Connect
+                                        </button>
+                                    </form>
+                                {% endif %}
+                                <button type="button" class="btn btn-outline-info btn-sm locate-friend" 
+                                        data-user-id="{{ match.user.id }}"
+                                        data-lat="{{ match.user.latitude }}"
+                                        data-lng="{{ match.user.longitude }}">
+                                    <i class="bi bi-geo-alt"></i> View on Map
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block head %}
+<style>
+    .connect-btn {
+        transition: all 0.3s ease;
+    }
+    .connect-btn:hover {
+        transform: scale(1.05);
+    }
+    .card {
+        transition: transform 0.3s ease-in-out;
+    }
+    .card:hover {
+        transform: translateY(-5px);
+    }
+    .progress {
+        background-color: var(--bs-gray-200);
+        border-radius: 4px;
+    }
+    .progress-bar {
+        transition: width 0.6s ease;
+    }
+</style>
+{% endblock %}

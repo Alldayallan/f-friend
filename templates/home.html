@@ -1,0 +1,588 @@
+{% extends "base.html" %}
+
+{% block title %}Home{% endblock %}
+
+{% block styles %}
+<style>
+/* Custom marker styling */
+.friend-marker {
+    animation: bounce 0.5s ease infinite alternate;
+    background: var(--bs-primary);
+    border-radius: 50%;
+    box-shadow: 0 0 10px rgba(0,0,0,0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.friend-marker::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--bs-primary);
+    transform: translate(-50%, -50%);
+    animation: ripple 2s ease-out infinite;
+    opacity: 0;
+}
+
+.friend-marker img {
+    border: 2px solid white;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    object-fit: cover;
+    z-index: 1;
+}
+
+.friend-marker i {
+    color: white;
+    font-size: 20px;
+    z-index: 1;
+}
+
+/* Ripple animation for online status */
+@keyframes ripple {
+    0% {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 0.4;
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(2.5);
+        opacity: 0;
+    }
+}
+
+/* Bounce animation */
+@keyframes bounce {
+    from { transform: translateY(0); }
+    to { transform: translateY(-10px); }
+}
+
+/* Pulse animation for online status */
+@keyframes pulse {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.2); opacity: 0.7; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+.friend-marker.online {
+    animation: bounce 0.5s ease infinite alternate;
+}
+
+.friend-marker.online::after {
+    animation: ripple 2s ease-out infinite;
+}
+
+/* Activity trail styling */
+.activity-trail {
+    stroke-dasharray: 8;
+    animation: dash 30s linear infinite;
+    stroke: var(--bs-primary);
+    opacity: 0.6;
+}
+
+@keyframes dash {
+    to {
+        stroke-dashoffset: -1000;
+    }
+}
+
+/* Custom popup styling */
+.leaflet-popup-content {
+    padding: 15px;
+}
+
+.friend-popup {
+    text-align: center;
+}
+
+.friend-popup img {
+    margin-bottom: 10px;
+    border: 3px solid var(--bs-primary);
+    transition: transform 0.3s ease;
+}
+
+.friend-popup img:hover {
+    transform: scale(1.1);
+}
+
+.friend-popup .btn-group {
+    margin-top: 10px;
+}
+
+/* Activity cluster styling */
+.cluster-marker {
+    background: rgba(var(--bs-primary-rgb), 0.8);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    border: 2px solid white;
+    box-shadow: 0 0 10px rgba(0,0,0,0.3);
+}
+
+/* Map controls styling */
+.map-controls {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1000;
+    background: rgba(0,0,0,0.7);
+    padding: 10px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+}
+
+.custom-div-icon {
+    background: none;
+    border: none;
+}
+
+/* Activity heatmap legend */
+.heatmap-legend {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    z-index: 1000;
+    background: rgba(0,0,0,0.7);
+    padding: 10px;
+    border-radius: 8px;
+    color: white;
+}
+
+.legend-gradient {
+    width: 200px;
+    height: 20px;
+    background: linear-gradient(to right, 
+        rgba(0, 0, 255, 0.5),
+        rgba(0, 255, 0, 0.5),
+        rgba(255, 255, 0, 0.5),
+        rgba(255, 0, 0, 0.5)
+    );
+    margin: 5px 0;
+    border-radius: 4px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <!-- Welcome Message -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <h1 class="display-6">Welcome back, {{ current_user.username }}!</h1>
+        </div>
+    </div>
+
+    <!-- Map Section -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="card-title mb-0">Friend Finder Map</h5>
+            <div class="btn-group">
+                <button class="btn btn-sm btn-outline-primary" id="satelliteView">
+                    <i class="bi bi-satellite"></i> Satellite
+                </button>
+                <button class="btn btn-sm btn-outline-primary" id="terrainView">
+                    <i class="bi bi-map"></i> Terrain
+                </button>
+                <button class="btn btn-sm btn-success" id="centerOnMe">
+                    <i class="bi bi-geo-alt-fill"></i> My Location
+                </button>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div id="map" style="height: 50vh;"></div>
+        </div>
+    </div>
+
+    <!-- Connections Section -->
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="card-title mb-0">Your Connections</h5>
+            <div>
+                <a href="{{ url_for('messages') }}" class="btn btn-sm btn-outline-primary me-2">
+                    <i class="bi bi-chat-dots"></i> Messages
+                    {% if current_user.get_unread_messages_count() > 0 %}
+                        <span class="badge bg-danger">{{ current_user.get_unread_messages_count() }}</span>
+                    {% endif %}
+                </a>
+                <a href="{{ url_for('friend_suggestions') }}" class="btn btn-sm btn-primary">
+                    <i class="bi bi-person-plus"></i> Find Friends
+                </a>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                {% for friend in current_user.friends %}
+                <div class="col-md-4 col-lg-3">
+                    <div class="card h-100">
+                        <div class="card-body text-center">
+                            <!-- Profile Picture -->
+                            <div class="mb-3">
+                                {% if friend.profile_picture %}
+                                    <img src="{{ friend.profile_picture }}" 
+                                         class="rounded-circle" 
+                                         width="80" 
+                                         height="80" 
+                                         alt="{{ friend.username }}"
+                                         style="object-fit: cover;">
+                                {% else %}
+                                    <div class="rounded-circle bg-secondary mx-auto d-flex align-items-center justify-content-center" 
+                                         style="width: 80px; height: 80px;">
+                                        <span class="text-white fs-4">{{ friend.username[0] | upper }}</span>
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- User Info -->
+                            <h6 class="mb-1">{{ friend.username }}</h6>
+                            <p class="text-muted small mb-2">
+                                {% if friend.last_active %}
+                                    {% if friend.last_active.tzinfo %}
+                                        {% set minutes_ago = ((now - friend.last_active).total_seconds() / 60)|int %}
+                                        {% if minutes_ago < 5 %}
+                                            <span class="text-success">
+                                                <i class="bi bi-circle-fill"></i> Online
+                                            </span>
+                                        {% else %}
+                                            Last seen: {{ friend.last_active.strftime('%Y-%m-%d %H:%M') }}
+                                        {% endif %}
+                                    {% else %}
+                                        Last seen unavailable
+                                    {% endif %}
+                                {% else %}
+                                    Never logged in
+                                {% endif %}
+                            </p>
+
+                            <!-- Action Buttons -->
+                            <div class="btn-group w-100">
+                                <a href="{{ url_for('chat', user_id=friend.id) }}" 
+                                   class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-chat-dots"></i>
+                                    {% set unread = friend.sent_messages|selectattr('is_read', 'equalto', false)|list|length %}
+                                    {% if unread > 0 %}
+                                        <span class="badge bg-danger">{{ unread }}</span>
+                                    {% endif %}
+                                </a>
+                                <button type="button" 
+                                        class="btn btn-sm btn-outline-info locate-friend" 
+                                        data-user-id="{{ friend.id }}"
+                                        data-lat="{{ friend.latitude }}"
+                                        data-lng="{{ friend.longitude }}"
+                                        title="Locate on map"
+                                        {% if not friend.latitude or not friend.longitude %}disabled{% endif %}>
+                                    <i class="bi bi-geo-alt"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="col-12 text-center py-5">
+                    <div class="mb-4">
+                        <i class="bi bi-people text-muted" style="font-size: 3rem;"></i>
+                    </div>
+                    <h5 class="text-muted mb-3">No connections yet</h5>
+                    <p class="text-muted mb-4">Start connecting with people who share your interests!</p>
+                    <a href="{{ url_for('friend_suggestions') }}" class="btn btn-primary">
+                        <i class="bi bi-person-plus"></i> Find Friends
+                    </a>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize map
+    const map = L.map('map').setView([0, 0], 2);
+    let currentMapLayer = 'streets';
+    let markers = {};
+    let activityPaths = {};
+    let heatmapLayer;
+    let activityData = [];
+
+    // Add default street layer
+    const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    // Satellite layer
+    const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: '© Esri'
+    });
+
+    // Terrain layer
+    const terrainLayer = L.tileLayer('https://tile.thunderforest.com/landscape/{z}/{x}/{y}.png?apikey=your-api-key', {
+        attribution: '© OpenStreetMap contributors, © Thunderforest'
+    });
+
+    // Initialize heatmap layer
+    heatmapLayer = L.heatLayer([], {
+        radius: 25,
+        blur: 15,
+        maxZoom: 10,
+        gradient: {
+            0.4: 'blue',
+            0.6: 'lime',
+            0.8: 'yellow',
+            1.0: 'red'
+        }
+    }).addTo(map);
+
+    function updateFriendMarker(friend) {
+        if (!friend.latitude || !friend.longitude) return;
+
+        const isOnline = friend.last_active ? 
+            (new Date() - new Date(friend.last_active)) / 1000 / 60 < 5 : false;
+
+        // Update heatmap data
+        activityData.push([friend.latitude, friend.longitude, isOnline ? 1 : 0.5]);
+        heatmapLayer.setLatLngs(activityData);
+
+        const markerHtml = `
+            <div class="friend-marker ${isOnline ? 'online' : ''}">
+                ${friend.profile_picture ? 
+                    `<img src="${friend.profile_picture}" alt="${friend.username}">` :
+                    `<i class="bi bi-person-fill"></i>`
+                }
+            </div>`;
+
+        const icon = L.divIcon({
+            html: markerHtml,
+            className: 'custom-div-icon',
+            iconSize: [40, 40],
+            iconAnchor: [20, 40]
+        });
+
+        if (markers[friend.id]) {
+            // Animate marker movement
+            const oldLatLng = markers[friend.id].getLatLng();
+            const newLatLng = L.latLng(friend.latitude, friend.longitude);
+
+            animateMarkerMovement(markers[friend.id], oldLatLng, newLatLng);
+            markers[friend.id].setIcon(icon);
+        } else {
+            const marker = L.marker([friend.latitude, friend.longitude], { icon: icon }).addTo(map);
+            markers[friend.id] = marker;
+
+            // Add activity trail if online
+            if (isOnline) {
+                drawActivityTrail(friend);
+            }
+
+            const popupContent = `
+                <div class="friend-popup">
+                    ${friend.profile_picture ? 
+                        `<img src="${friend.profile_picture}" class="rounded-circle" width="60" height="60">` :
+                        `<div class="rounded-circle bg-primary d-flex align-items-center justify-content-center mx-auto mb-2" 
+                              style="width: 60px; height: 60px;">
+                            <span class="text-white fs-4">${friend.username[0].toUpperCase()}</span>
+                        </div>`
+                    }
+                    <h6 class="mb-2">${friend.username}</h6>
+                    <p class="text-muted small mb-3">
+                        ${isOnline ? 
+                            '<span class="text-success"><i class="bi bi-circle-fill"></i> Online</span>' : 
+                            `Last seen: ${new Date(friend.last_active).toLocaleString()}`
+                        }
+                    </p>
+                    <div class="btn-group btn-group-sm">
+                        <a href="/chat/${friend.id}" class="btn btn-primary">
+                            <i class="bi bi-chat-dots"></i> Message
+                        </a>
+                        <button onclick="centerOnUser(${friend.latitude}, ${friend.longitude})" class="btn btn-info">
+                            <i class="bi bi-geo-alt"></i> Center
+                        </button>
+                    </div>
+                </div>`;
+
+            marker.bindPopup(popupContent, {
+                className: 'custom-popup',
+                maxWidth: 300
+            });
+
+            // Add hover effect
+            marker.on('mouseover', function() {
+                this.openPopup();
+            });
+        }
+    }
+
+    function animateMarkerMovement(marker, oldLatLng, newLatLng) {
+        const frames = 50;
+        const lat = (newLatLng.lat - oldLatLng.lat) / frames;
+        const lng = (newLatLng.lng - oldLatLng.lng) / frames;
+        let frame = 0;
+
+        const animate = () => {
+            frame++;
+            const currentLat = oldLatLng.lat + (lat * frame);
+            const currentLng = oldLatLng.lng + (lng * frame);
+            marker.setLatLng([currentLat, currentLng]);
+
+            if (frame < frames) {
+                requestAnimationFrame(animate);
+            }
+        };
+
+        animate();
+    }
+
+    function drawActivityTrail(friend) {
+        if (activityPaths[friend.id]) {
+            map.removeLayer(activityPaths[friend.id]);
+        }
+
+        // Create a curved path from current location to a random point nearby
+        const controlPoint = getControlPoint(
+            [friend.latitude, friend.longitude],
+            0.01 // Radius for control point
+        );
+
+        const pathCoordinates = getBezierCurve(
+            [friend.latitude, friend.longitude],
+            controlPoint,
+            [friend.latitude, friend.longitude]
+        );
+
+        activityPaths[friend.id] = L.polyline(pathCoordinates, {
+            color: 'var(--bs-primary)',
+            weight: 2,
+            opacity: 0.6,
+            className: 'activity-trail'
+        }).addTo(map);
+    }
+
+    function getControlPoint(center, radius) {
+        const angle = Math.random() * Math.PI * 2;
+        return [
+            center[0] + radius * Math.cos(angle),
+            center[1] + radius * Math.sin(angle)
+        ];
+    }
+
+    function getBezierCurve(start, control, end) {
+        const points = [];
+        for (let t = 0; t <= 1; t += 0.01) {
+            points.push([
+                Math.pow(1-t, 2) * start[0] + 2 * (1-t) * t * control[0] + Math.pow(t, 2) * end[0],
+                Math.pow(1-t, 2) * start[1] + 2 * (1-t) * t * control[1] + Math.pow(t, 2) * end[1]
+            ]);
+        }
+        return points;
+    }
+
+    // Map view toggles
+    document.getElementById('satelliteView').addEventListener('click', function() {
+        if (currentMapLayer !== 'satellite') {
+            map.removeLayer(streetLayer);
+            map.removeLayer(terrainLayer);
+            satelliteLayer.addTo(map);
+            currentMapLayer = 'satellite';
+        }
+    });
+
+    document.getElementById('terrainView').addEventListener('click', function() {
+        if (currentMapLayer !== 'terrain') {
+            map.removeLayer(streetLayer);
+            map.removeLayer(satelliteLayer);
+            terrainLayer.addTo(map);
+            currentMapLayer = 'terrain';
+        }
+    });
+
+    // Function to center map on specific coordinates
+    function centerOnUser(lat, lng) {
+        if (lat && lng) {
+            map.setView([lat, lng], 13);
+        }
+    }
+
+    // Get user's location and update it
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(function(position) {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+
+            // Update user's location in the database
+            fetch('/api/update-location', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    latitude: lat,
+                    longitude: lng
+                })
+            });
+
+            // Center map on user's location
+            map.setView([lat, lng], 13);
+        });
+    }
+
+    // Add click handler for "My Location" button
+    document.getElementById('centerOnMe').addEventListener('click', function() {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(function(position) {
+                const lat = position.coords.latitude;
+                const lng = position.coords.longitude;
+                map.setView([lat, lng], 13);
+            });
+        }
+    });
+
+
+    // Update friend locations with enhanced visualization
+    function updateFriendLocations() {
+        activityData = []; // Reset activity data
+        fetch('/api/friend-locations')
+            .then(response => response.json())
+            .then(friends => {
+                friends.forEach(updateFriendMarker);
+            });
+    }
+
+    // Initialize and start periodic updates
+    updateFriendLocations();
+    setInterval(updateFriendLocations, 30000);
+
+    // Handle locate friend button clicks
+    document.querySelectorAll('.locate-friend').forEach(button => {
+        button.addEventListener('click', function() {
+            const userId = this.getAttribute('data-user-id');
+            const lat = parseFloat(this.getAttribute('data-lat'));
+            const lng = parseFloat(this.getAttribute('data-lng'));
+
+            if (lat && lng) {
+                map.setView([lat, lng], 13);
+                const marker = markers[userId];
+                if (marker) {
+                    marker.openPopup();
+                }
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

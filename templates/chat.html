@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+
+{% block title %}Chat with {{ other_user.username }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-md-8 mx-auto">
+            <div class="card">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                        {% if other_user.profile_picture %}
+                            <img src="{{ other_user.profile_picture }}" 
+                                 class="rounded-circle me-2" 
+                                 alt="Profile picture" 
+                                 style="width: 40px; height: 40px; object-fit: cover;">
+                        {% else %}
+                            <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center me-2"
+                                 style="width: 40px; height: 40px;">
+                                <i class="bi bi-person-fill text-white"></i>
+                            </div>
+                        {% endif %}
+                        <div>
+                            <h5 class="mb-0">{{ other_user.username }}</h5>
+                            <small class="text-white-50">
+                                {% if other_user.last_active %}
+                                    Last seen: {{ other_user.last_active.strftime('%H:%M') }}
+                                {% endif %}
+                            </small>
+                        </div>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-outline-light btn-sm" onclick="window.location.href='/map'">
+                            <i class="bi bi-geo-alt-fill"></i> View Location
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card-body bg-dark" style="height: 400px; overflow-y: auto;" id="messageContainer">
+                    {% for message in messages %}
+                        <div class="mb-3 d-flex {% if message.sender_id == current_user.id %}justify-content-end{% endif %}">
+                            <div class="{% if message.sender_id == current_user.id %}bg-primary{% else %}bg-secondary{% endif %} text-white rounded p-2" style="max-width: 75%;">
+                                {% if message.sender_id != current_user.id %}
+                                    <small class="text-white-50 d-block mb-1">{{ message.sender.username }}</small>
+                                {% endif %}
+
+                                {% if message.media_url %}
+                                    {% if message.media_type == 'image' %}
+                                        <img src="{{ message.media_url }}" class="img-fluid rounded mb-2" alt="Shared image">
+                                    {% elif message.media_type == 'video' %}
+                                        <video controls class="img-fluid rounded mb-2">
+                                            <source src="{{ message.media_url }}" type="video/mp4">
+                                            Your browser does not support the video tag.
+                                        </video>
+                                    {% elif message.media_type == 'audio' %}
+                                        <audio controls class="mb-2 w-100">
+                                            <source src="{{ message.media_url }}" type="audio/mpeg">
+                                            Your browser does not support the audio tag.
+                                        </audio>
+                                    {% elif message.media_type == 'document' %}
+                                        <div class="bg-dark p-2 rounded mb-2">
+                                            <i class="bi bi-file-earmark-text"></i>
+                                            <a href="{{ message.media_url }}" target="_blank" class="text-white">
+                                                Download Document
+                                            </a>
+                                        </div>
+                                    {% endif %}
+                                {% endif %}
+
+                                {% if message.content %}
+                                    <p class="mb-1">{{ message.content }}</p>
+                                {% endif %}
+
+                                <div class="text-white-50 small text-end">
+                                    {{ message.created_at.strftime('%H:%M') }}
+                                    {% if message.sender_id == current_user.id %}
+                                        {% if message.is_read %}
+                                            <i class="bi bi-check2-all"></i>
+                                        {% else %}
+                                            <i class="bi bi-check2"></i>
+                                        {% endif %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+
+                <div class="card-footer">
+                    <form id="messageForm" class="d-flex gap-2">
+                        <input type="hidden" id="recipient_id" value="{{ other_user.id }}">
+                        <div class="input-group">
+                            <div class="dropdown">
+                                <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                                    <i class="bi bi-paperclip"></i>
+                                </button>
+                                <ul class="dropdown-menu">
+                                    <li>
+                                        <a class="dropdown-item" href="#" onclick="document.getElementById('imageInput').click()">
+                                            <i class="bi bi-image"></i> Image
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item" href="#" onclick="document.getElementById('videoInput').click()">
+                                            <i class="bi bi-camera-video"></i> Video
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item" href="#" onclick="document.getElementById('audioInput').click()">
+                                            <i class="bi bi-mic"></i> Audio
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item" href="#" onclick="document.getElementById('documentInput').click()">
+                                            <i class="bi bi-file-earmark-text"></i> Document
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>
+                            <input type="text" class="form-control" id="messageInput" placeholder="Type a message...">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-send"></i>
+                            </button>
+                        </div>
+                    </form>
+                    <input type="file" id="imageInput" accept="image/*" style="display: none;">
+                    <input type="file" id="videoInput" accept="video/*" style="display: none;">
+                    <input type="file" id="audioInput" accept="audio/*" style="display: none;">
+                    <input type="file" id="documentInput" accept=".pdf,.doc,.docx,.txt" style="display: none;">
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const socket = io();
+        const messageContainer = document.getElementById('messageContainer');
+        const messageForm = document.getElementById('messageForm');
+        const messageInput = document.getElementById('messageInput');
+        const recipientId = document.getElementById('recipient_id').value;
+
+        // File input handlers
+        const fileInputs = {
+            'imageInput': 'image',
+            'videoInput': 'video',
+            'audioInput': 'audio',
+            'documentInput': 'document'
+        };
+
+        // Scroll to bottom of messages
+        messageContainer.scrollTop = messageContainer.scrollHeight;
+
+        socket.on('connect', () => {
+            console.log('Connected to WebSocket');
+        });
+
+        socket.on('new_message', (data) => {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `mb-3 d-flex ${data.sender_id == {{ current_user.id }} ? 'justify-content-end' : ''}`;
+
+            let mediaContent = '';
+            if (data.media_url) {
+                if (data.media_type === 'image') {
+                    mediaContent = `<img src="${data.media_url}" class="img-fluid rounded mb-2" alt="Shared image">`;
+                } else if (data.media_type === 'video') {
+                    mediaContent = `
+                        <video controls class="img-fluid rounded mb-2">
+                            <source src="${data.media_url}" type="video/mp4">
+                            Your browser does not support the video tag.
+                        </video>`;
+                } else if (data.media_type === 'audio') {
+                    mediaContent = `
+                        <audio controls class="mb-2 w-100">
+                            <source src="${data.media_url}" type="audio/mpeg">
+                            Your browser does not support the audio tag.
+                        </audio>`;
+                } else if (data.media_type === 'document') {
+                    mediaContent = `
+                        <div class="bg-dark p-2 rounded mb-2">
+                            <i class="bi bi-file-earmark-text"></i>
+                            <a href="${data.media_url}" target="_blank" class="text-white">
+                                Download Document
+                            </a>
+                        </div>`;
+                }
+            }
+
+            messageDiv.innerHTML = `
+                <div class="${data.sender_id == {{ current_user.id }} ? 'bg-primary' : 'bg-secondary'} text-white rounded p-2" style="max-width: 75%;">
+                    ${data.sender_id != {{ current_user.id }} ? `<small class="text-white-50 d-block mb-1">${data.sender_username}</small>` : ''}
+                    ${mediaContent}
+                    ${data.content ? `<p class="mb-1">${data.content}</p>` : ''}
+                    <div class="text-white-50 small text-end">
+                        ${new Date(data.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        ${data.sender_id == {{ current_user.id }} ? '<i class="bi bi-check2"></i>' : ''}
+                    </div>
+                </div>
+            `;
+
+            messageContainer.appendChild(messageDiv);
+            messageContainer.scrollTop = messageContainer.scrollHeight;
+        });
+
+        messageForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const content = messageInput.value.trim();
+            if (content) {
+                socket.emit('send_message', {
+                    recipient_id: recipientId,
+                    content: content
+                });
+                messageInput.value = '';
+            }
+        });
+
+        // Handle file inputs
+        Object.entries(fileInputs).forEach(([inputId, mediaType]) => {
+            document.getElementById(inputId).addEventListener('change', async function(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const formData = new FormData();
+                formData.append('media', file);
+
+                try {
+                    const response = await fetch('/upload-chat-media', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const data = await response.json();
+                    if (data.success) {
+                        socket.emit('send_message', {
+                            recipient_id: recipientId,
+                            content: '',
+                            media_url: data.media_url,
+                            media_type: data.media_type
+                        });
+                    } else {
+                        alert('Failed to upload media: ' + data.message);
+                    }
+                } catch (error) {
+                    console.error('Error uploading media:', error);
+                    alert('Failed to upload media. Please try again.');
+                }
+
+                // Clear the input
+                e.target.value = '';
+            });
+        });
+    });
+</script>
+{% endblock %}

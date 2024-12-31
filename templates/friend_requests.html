@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% block title %}Friend Requests{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <h2 class="mb-4">Friend Requests</h2>
+
+    {% if not requests %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i>
+            No pending friend requests.
+        </div>
+    {% else %}
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+            {% for request in requests %}
+                <div class="col friend-request-card" data-request-id="{{ request.id }}">
+                    <div class="card h-100 animate__animated animate__fadeIn">
+                        {% if request.sender.profile_picture %}
+                            <img src="{{ request.sender.profile_picture }}" class="card-img-top" alt="Profile picture" style="height: 200px; object-fit: cover;">
+                        {% else %}
+                            <div class="card-img-top bg-secondary d-flex align-items-center justify-content-center" style="height: 200px;">
+                                <i class="bi bi-person-fill" style="font-size: 4rem; color: white;"></i>
+                            </div>
+                        {% endif %}
+
+                        <div class="card-body">
+                            <h5 class="card-title">{{ request.sender.username }}</h5>
+
+                            {% if request.sender.age and request.sender.privacy_settings.get('age_visible', True) %}
+                                <p class="card-text"><i class="bi bi-calendar"></i> {{ request.sender.age }} years old</p>
+                            {% endif %}
+
+                            {% if request.sender.location and request.sender.privacy_settings.get('location_visible', True) %}
+                                <p class="card-text"><i class="bi bi-geo-alt"></i> {{ request.sender.location }}</p>
+                            {% endif %}
+
+                            <p class="card-text text-muted">
+                                <i class="bi bi-clock"></i> Sent {{ request.created_at.strftime('%Y-%m-%d %H:%M') }}
+                            </p>
+                        </div>
+
+                        <div class="card-footer bg-transparent border-top-0">
+                            <div class="d-grid gap-2">
+                                <button onclick="handleFriendRequest('{{ request.id }}', 'accept')" 
+                                   class="btn btn-success btn-sm accept-btn">
+                                    <i class="bi bi-check-lg"></i> Accept
+                                </button>
+                                <button onclick="handleFriendRequest('{{ request.id }}', 'decline')"
+                                   class="btn btn-outline-danger btn-sm decline-btn">
+                                    <i class="bi bi-x-lg"></i> Decline
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+<style>
+    .friend-request-card {
+        transition: transform 0.3s ease-in-out;
+    }
+    .friend-request-card:hover {
+        transform: translateY(-5px);
+    }
+    .accept-btn, .decline-btn {
+        transition: all 0.3s ease;
+    }
+    .accept-btn:hover {
+        transform: scale(1.05);
+    }
+    .decline-btn:hover {
+        transform: scale(1.05);
+    }
+    @keyframes slideOut {
+        from {
+            opacity: 1;
+            transform: translateX(0);
+        }
+        to {
+            opacity: 0;
+            transform: translateX(100%);
+        }
+    }
+    .slide-out {
+        animation: slideOut 0.5s ease forwards;
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function handleFriendRequest(requestId, action) {
+    const card = document.querySelector(`[data-request-id="${requestId}"]`);
+    const btn = card.querySelector(action === 'accept' ? '.accept-btn' : '.decline-btn');
+
+    // Disable both buttons
+    card.querySelectorAll('button').forEach(button => button.disabled = true);
+
+    // Add loading state
+    btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> ${action === 'accept' ? 'Accepting...' : 'Declining...'}`;
+
+    // Make the request
+    fetch(`/handle-friend-request/${requestId}/${action}`)
+        .then(response => {
+            if (response.ok) {
+                // Add slide out animation
+                card.querySelector('.card').classList.add('slide-out');
+
+                // Remove the card after animation
+                setTimeout(() => {
+                    card.remove();
+
+                    // Check if there are no more requests
+                    const remainingCards = document.querySelectorAll('.friend-request-card');
+                    if (remainingCards.length === 0) {
+                        location.reload(); // Reload to show the "no requests" message
+                    }
+                }, 500);
+            } else {
+                throw new Error('Failed to process request');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            // Reset button state
+            btn.innerHTML = `<i class="bi bi-${action === 'accept' ? 'check-lg' : 'x-lg'}"></i> ${action === 'accept' ? 'Accept' : 'Decline'}`;
+            card.querySelectorAll('button').forEach(button => button.disabled = false);
+        });
+}
+</script>
+{% endblock %}

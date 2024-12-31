@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Geo Friender{% endblock %}</title>
+    <link rel="stylesheet" href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+    <!-- Load Bootstrap JS and Socket.IO in head with defer -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js" defer></script>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('index') }}">Geo Friender</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    {% if current_user.is_authenticated %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('index') }}">Home</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('friend_suggestions') }}">Find Friends</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('messages') }}">
+                                Messages
+                                {% if current_user.get_unread_messages_count() > 0 %}
+                                    <span class="badge bg-danger">{{ current_user.get_unread_messages_count() }}</span>
+                                {% endif %}
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('notifications') }}" id="notifications-link">
+                                <i class="bi bi-bell-fill"></i>
+                                <span class="notification-count badge bg-danger d-none">0</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('groups') }}">
+                                <i class="bi bi-people-fill"></i> Group Chat
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('friend_map') }}">
+                                <i class="bi bi-map"></i> Map
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('profile') }}">Profile</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
+                        </li>
+                    {% else %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('login') }}">Login</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('register') }}">Register</a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </div>
+
+    {% block scripts %}{% endblock %}
+
+    <!-- Global Socket.IO initialization -->
+    {% if current_user.is_authenticated %}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize Socket.IO
+            const socket = io();
+
+            // Handle connection
+            socket.on('connect', function() {
+                console.log('Connected to WebSocket');
+            });
+
+            // Handle connection error
+            socket.on('connect_error', function(error) {
+                console.error('WebSocket connection error:', error);
+            });
+
+            // Handle new notifications
+            socket.on('new_notification', function(data) {
+                console.log('Received notification:', data);
+
+                // Update notification count
+                const notificationCount = document.querySelector('.notification-count');
+                const currentCount = parseInt(notificationCount.textContent || '0');
+                notificationCount.textContent = currentCount + 1;
+                notificationCount.classList.remove('d-none');
+
+                // Show toast notification
+                const toast = document.createElement('div');
+                toast.className = 'toast position-fixed bottom-0 end-0 m-3';
+                toast.setAttribute('role', 'alert');
+                toast.innerHTML = `
+                    <div class="toast-header">
+                        <i class="bi bi-bell-fill me-2"></i>
+                        <strong class="me-auto">New Notification</strong>
+                        <small>Just now</small>
+                        <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+                    </div>
+                    <div class="toast-body">
+                        ${data.content}
+                    </div>
+                `;
+                document.body.appendChild(toast);
+                const bsToast = new bootstrap.Toast(toast);
+                bsToast.show();
+
+                // Remove toast after it's hidden
+                toast.addEventListener('hidden.bs.toast', function() {
+                    toast.remove();
+                });
+            });
+
+            // Fetch initial notification count
+            fetch('/notifications')
+                .then(response => response.text())
+                .then(html => {
+                    console.log('Fetched notifications');
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    const notifications = doc.querySelectorAll('.notification-item');
+                    console.log('Found notifications:', notifications.length);
+                    const notificationCount = document.querySelector('.notification-count');
+                    if (notifications.length > 0) {
+                        notificationCount.textContent = notifications.length;
+                        notificationCount.classList.remove('d-none');
+                    }
+                })
+                .catch(error => console.error('Error fetching notifications:', error));
+        });
+    </script>
+    {% endif %}
+</body>
+</html>

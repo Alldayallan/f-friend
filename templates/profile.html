@@ -1,0 +1,450 @@
+{% extends "base.html" %}
+
+{% block title %}Profile - {{ current_user.username }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <!-- Profile Display Section -->
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-body text-center">
+                    <div class="profile-picture-container mb-3">
+                        {% if current_user.profile_picture %}
+                            <img src="{{ current_user.profile_picture }}" alt="Profile Picture" class="rounded-circle img-fluid" style="width: 150px; height: 150px; object-fit: cover;">
+                        {% else %}
+                            <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center mx-auto" style="width: 150px; height: 150px;">
+                                <i class="bi bi-person-fill" style="font-size: 4rem; color: white;"></i>
+                            </div>
+                        {% endif %}
+                        <div class="profile-picture-overlay">
+                            <label for="profile_picture" class="btn btn-sm btn-primary mt-2">
+                                <i class="bi bi-camera"></i> Change Photo
+                            </label>
+                        </div>
+                    </div>
+                    <h5 class="card-title">{{ current_user.username }}</h5>
+                    {% if current_user.age and current_user.privacy_settings.get('age_visible', True) %}
+                        <p class="card-text"><i class="bi bi-calendar"></i> {{ current_user.age }} years old</p>
+                    {% endif %}
+                    {% if current_user.location and current_user.privacy_settings.get('location_visible', True) %}
+                        <p class="card-text"><i class="bi bi-geo-alt"></i> {{ current_user.location }}</p>
+                    {% endif %}
+                    {% if current_user.looking_for %}
+                        <p class="card-text">
+                            <i class="bi bi-search-heart"></i> Looking for: {{ current_user.looking_for | replace('_', ' ') | title }}
+                        </p>
+                    {% endif %}
+                    {% if current_user.availability and current_user.privacy_settings.get('availability_visible', True) %}
+                        <p class="card-text">
+                            <i class="bi bi-clock"></i> Available: {{ current_user.availability | title }}
+                        </p>
+                    {% endif %}
+                    {% if current_user.bio and current_user.privacy_settings.get('bio_visible', True) %}
+                        <div class="card-text mt-3">
+                            <h6><i class="bi bi-person-lines-fill"></i> About Me</h6>
+                            {{ current_user.bio | safe }}
+                        </div>
+                    {% endif %}
+                    {% if current_user.interests and current_user.privacy_settings.get('interests_visible', True) %}
+                        <div class="card-text mt-3">
+                            <h6><i class="bi bi-heart-fill"></i> Interests</h6>
+                            {{ current_user.interests | safe }}
+                        </div>
+                    {% endif %}
+                    {% if current_user.activities and current_user.privacy_settings.get('activities_visible', True) %}
+                        <div class="card-text mt-3">
+                            <h6><i class="bi bi-activity"></i> Activities</h6>
+                            {{ current_user.activities | safe }}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Profile Edit Form -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body">
+                    <h4 class="card-title mb-4">Edit Profile</h4>
+                    <form method="POST" class="needs-validation" novalidate enctype="multipart/form-data" id="profileForm">
+                        {{ form.hidden_tag() }}
+
+                        <!-- Profile Picture Upload -->
+                        <div class="mb-3 file-drop-area">
+                            <input type="file" id="profile_picture" name="profile_picture" class="file-input" accept="image/*" hidden>
+                            <div class="file-msg">
+                                <i class="bi bi-cloud-upload"></i>
+                                <p>Drag & drop your profile picture here or click to browse</p>
+                                <small class="text-muted">Max size: 2MB. Will be resized to 512x512px</small>
+                            </div>
+                            {% for error in form.profile_picture.errors %}
+                                <div class="invalid-feedback d-block">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+
+                        <!-- Basic Info -->
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                {{ form.age.label(class="form-label") }}
+                                {{ form.age(class="form-control") }}
+                                {% for error in form.age.errors %}
+                                    <div class="invalid-feedback d-block">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                {{ form.location.label(class="form-label") }}
+                                {{ form.location(class="form-control") }}
+                                {% for error in form.location.errors %}
+                                    <div class="invalid-feedback d-block">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <!-- Preferences -->
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                {{ form.looking_for.label(class="form-label") }}
+                                {{ form.looking_for(class="form-select") }}
+                                {% for error in form.looking_for.errors %}
+                                    <div class="invalid-feedback d-block">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                {{ form.availability.label(class="form-label") }}
+                                {{ form.availability(class="form-select") }}
+                                {% for error in form.availability.errors %}
+                                    <div class="invalid-feedback d-block">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <!-- Rich Text Fields -->
+                        <div class="mb-3">
+                            {{ form.bio.label(class="form-label") }}
+                            {{ form.bio(class="form-control wysiwyg-editor", rows="4") }}
+                            {% for error in form.bio.errors %}
+                                <div class="invalid-feedback d-block">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        <div class="mb-3">
+                            {{ form.interests.label(class="form-label") }}
+                            {{ form.interests(class="form-control wysiwyg-editor", rows="3") }}
+                            {% for error in form.interests.errors %}
+                                <div class="invalid-feedback d-block">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        <div class="mb-3">
+                            {{ form.activities.label(class="form-label") }}
+                            {{ form.activities(class="form-control wysiwyg-editor", rows="3") }}
+                            {% for error in form.activities.errors %}
+                                <div class="invalid-feedback d-block">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+
+                        <!-- Activity Images Upload Section -->
+                        <div class="mb-3">
+                            <label class="form-label">Activity Images</label>
+                            <div class="activity-image-upload file-drop-area">
+                                <input type="file" name="activity_image" class="activity-file-input" accept="image/*" hidden>
+                                <div class="file-msg">
+                                    <i class="bi bi-cloud-upload"></i>
+                                    <p>Drag & drop activity images here or click to browse</p>
+                                    <small class="text-muted">Max size: 2MB per image. Images will be optimized.</small>
+                                </div>
+                            </div>
+                            <!-- Activity Images Gallery -->
+                            <div class="activity-images-gallery mt-3 row row-cols-2 row-cols-md-4 g-3">
+                                {% if current_user.activity_images %}
+                                    {% for image_url in current_user.activity_images %}
+                                        <div class="col">
+                                            <div class="card h-100">
+                                                <img src="{{ image_url }}" class="card-img-top" alt="Activity Image" style="height: 150px; object-fit: cover;">
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <hr class="my-4">
+                        <h5 class="mb-3">Privacy Settings</h5>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <div class="form-check mb-2">
+                                    {{ form.location_visible(class="form-check-input") }}
+                                    {{ form.location_visible.label(class="form-check-label") }}
+                                </div>
+                                <div class="form-check mb-2">
+                                    {{ form.interests_visible(class="form-check-input") }}
+                                    {{ form.interests_visible.label(class="form-check-label") }}
+                                </div>
+                                <div class="form-check mb-2">
+                                    {{ form.bio_visible(class="form-check-input") }}
+                                    {{ form.bio_visible.label(class="form-check-label") }}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check mb-2">
+                                    {{ form.age_visible(class="form-check-input") }}
+                                    {{ form.age_visible.label(class="form-check-label") }}
+                                </div>
+                                <div class="form-check mb-2">
+                                    {{ form.activities_visible(class="form-check-input") }}
+                                    {{ form.activities_visible.label(class="form-check-label") }}
+                                </div>
+                                <div class="form-check mb-2">
+                                    {{ form.availability_visible(class="form-check-input") }}
+                                    {{ form.availability_visible.label(class="form-check-label") }}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-grid">
+                            {{ form.submit(class="btn btn-primary") }}
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tinymce/6.8.2/tinymce.min.js" referrerpolicy="origin"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize TinyMCE WYSIWYG editor
+    try {
+        tinymce.init({
+            selector: '.wysiwyg-editor',
+            height: 200,
+            menubar: false,
+            branding: false,
+            promotion: false,
+            plugins: 'lists autolink',
+            toolbar: 'undo redo | bold italic | bullist numlist | removeformat',
+            content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial; font-size: 14px }',
+            setup: function(editor) {
+                editor.on('init', function() {
+                    console.log('Editor initialized successfully');
+                });
+            }
+        }).then(function() {
+            console.log('All editors initialized');
+        }).catch(function(err) {
+            console.error('Editor initialization failed:', err);
+        });
+    } catch (e) {
+        console.error('Failed to initialize TinyMCE:', e);
+    }
+
+    // Drag & Drop functionality
+    const fileDropArea = document.querySelector('.file-drop-area');
+    const fileInput = document.querySelector('.file-input');
+    const fileMsg = document.querySelector('.file-msg');
+
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        fileDropArea.addEventListener(eventName, preventDefaults, false);
+    });
+
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+        fileDropArea.addEventListener(eventName, highlight, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        fileDropArea.addEventListener(eventName, unhighlight, false);
+    });
+
+    function highlight(e) {
+        fileDropArea.classList.add('highlight');
+    }
+
+    function unhighlight(e) {
+        fileDropArea.classList.remove('highlight');
+    }
+
+    fileDropArea.addEventListener('drop', handleDrop, false);
+
+    function handleDrop(e) {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        handleFiles(files);
+    }
+
+    function handleFiles(files) {
+        if (files.length > 0) {
+            fileInput.files = files;
+            updateFileMessage(files[0].name);
+        }
+    }
+
+    fileInput.addEventListener('change', function(e) {
+        if (this.files.length > 0) {
+            updateFileMessage(this.files[0].name);
+        }
+    });
+
+    function updateFileMessage(fileName) {
+        fileMsg.innerHTML = `<i class="bi bi-check-circle"></i><p>Selected: ${fileName}</p>`;
+    }
+
+    // Form submission
+    const profileForm = document.getElementById('profileForm');
+    profileForm.addEventListener('submit', function() {
+        // Save TinyMCE content before form submission
+        tinymce.triggerSave();
+    });
+});
+</script>
+
+<script>
+    // Activity image upload handling
+    const activityFileInput = document.querySelector('.activity-file-input');
+    const activityDropArea = document.querySelector('.activity-image-upload');
+    const activityGallery = document.querySelector('.activity-images-gallery');
+
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        activityDropArea.addEventListener(eventName, preventDefaults, false);
+    });
+
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+        activityDropArea.addEventListener(eventName, highlight, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        activityDropArea.addEventListener(eventName, unhighlight, false);
+    });
+
+    function highlight(e) {
+        activityDropArea.classList.add('highlight');
+    }
+
+    function unhighlight(e) {
+        activityDropArea.classList.remove('highlight');
+    }
+
+    activityDropArea.addEventListener('drop', handleActivityImageDrop, false);
+    activityFileInput.addEventListener('change', handleActivityImageSelect, false);
+
+    function handleActivityImageDrop(e) {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        handleActivityImageUpload(files[0]);
+    }
+
+    function handleActivityImageSelect(e) {
+        const files = this.files;
+        handleActivityImageUpload(files[0]);
+    }
+
+    function handleActivityImageUpload(file) {
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('activity_image', file);
+
+        fetch('/upload-activity-image', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Add new image to gallery
+                const col = document.createElement('div');
+                col.className = 'col';
+                col.innerHTML = `
+                    <div class="card h-100">
+                        <img src="${data.image_url}" class="card-img-top" alt="Activity Image" style="height: 150px; object-fit: cover;">
+                    </div>
+                `;
+                activityGallery.appendChild(col);
+            } else {
+                alert(data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error uploading image:', error);
+            alert('Failed to upload image. Please try again.');
+        });
+    }
+</script>
+
+<style>
+.file-drop-area {
+    border: 2px dashed var(--bs-border-color);
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+.file-drop-area.highlight {
+    border-color: var(--bs-primary);
+    background-color: rgba(var(--bs-primary-rgb), 0.1);
+}
+
+.file-msg {
+    margin: 0;
+}
+
+.file-msg i {
+    font-size: 2rem;
+    margin-bottom: 10px;
+}
+
+.profile-picture-container {
+    position: relative;
+    display: inline-block;
+}
+
+.profile-picture-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    text-align: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.profile-picture-container:hover .profile-picture-overlay {
+    opacity: 1;
+}
+
+.activity-image-upload {
+    border: 2px dashed var(--bs-border-color);
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+    transition: all 0.3s ease;
+    margin-bottom: 1rem;
+}
+
+.activity-image-upload.highlight {
+    border-color: var(--bs-primary);
+    background-color: rgba(var(--bs-primary-rgb), 0.1);
+}
+
+.activity-images-gallery .card {
+    transition: transform 0.2s;
+}
+
+.activity-images-gallery .card:hover {
+    transform: scale(1.05);
+}
+</style>
+{% endblock %}

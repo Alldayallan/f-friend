@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}Messages{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <h2 class="mb-4">Messages</h2>
+
+    {% if not chat_partners and not friends %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i>
+            No messages yet. Add some friends to start chatting!
+        </div>
+    {% else %}
+        {% if friends %}
+            <div class="mb-4">
+                <h5>Friends</h5>
+                <div class="list-group">
+                    {% for friend in friends %}
+                        <a href="{{ url_for('chat', user_id=friend.id) }}" 
+                           class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            <div class="d-flex align-items-center">
+                                {% if friend.profile_picture %}
+                                    <img src="{{ friend.profile_picture }}" 
+                                         class="rounded-circle me-3" 
+                                         alt="Profile picture" 
+                                         style="width: 48px; height: 48px; object-fit: cover;">
+                                {% else %}
+                                    <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center me-3"
+                                         style="width: 48px; height: 48px;">
+                                        <i class="bi bi-person-fill text-white"></i>
+                                    </div>
+                                {% endif %}
+                                <div>
+                                    <h5 class="mb-1">{{ friend.username }}</h5>
+                                    <small>Start a conversation</small>
+                                </div>
+                            </div>
+                        </a>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
+
+        {% if chat_partners %}
+            <div>
+                <h5>Recent Chats</h5>
+                <div class="list-group">
+                    {% for partner in chat_partners %}
+                        <a href="{{ url_for('chat', user_id=partner.id) }}" 
+                           class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            <div class="d-flex align-items-center">
+                                {% if partner.profile_picture %}
+                                    <img src="{{ partner.profile_picture }}" 
+                                         class="rounded-circle me-3" 
+                                         alt="Profile picture" 
+                                         style="width: 48px; height: 48px; object-fit: cover;">
+                                {% else %}
+                                    <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center me-3"
+                                         style="width: 48px; height: 48px;">
+                                        <i class="bi bi-person-fill text-white"></i>
+                                    </div>
+                                {% endif %}
+                                <div>
+                                    <h5 class="mb-1">{{ partner.username }}</h5>
+                                    <small class="text-body-secondary">
+                                        {% if partner.last_active %}
+                                            Last active: {{ partner.last_active.strftime('%Y-%m-%d %H:%M') }}
+                                        {% endif %}
+                                    </small>
+                                </div>
+                            </div>
+                            {% set unread = partner.sent_messages|selectattr('is_read', 'equalto', false)|list|length %}
+                            {% if unread > 0 %}
+                                <span class="badge bg-primary rounded-pill">{{ unread }}</span>
+                            {% endif %}
+                        </a>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
+    {% endif %}
+</div>
+{% endblock %}

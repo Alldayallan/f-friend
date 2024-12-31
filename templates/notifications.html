@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+
+{% block title %}Notifications{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <h2 class="mb-4">
+        Notifications
+        {% if notifications %}
+            <button class="btn btn-outline-primary float-end" id="markAllRead">
+                <i class="bi bi-check-all"></i> Mark All Read
+            </button>
+        {% endif %}
+    </h2>
+
+    {% if not notifications %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i>
+            No new notifications.
+        </div>
+    {% else %}
+        <div class="notification-list">
+            {% for notification in notifications %}
+                <div class="card mb-3 notification-item animate__animated animate__fadeIn" 
+                     data-notification-id="{{ notification.id }}">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            {% if notification.type == 'friend_request' %}
+                                <div class="notification-icon bg-primary text-white rounded-circle p-2 me-3">
+                                    <i class="bi bi-person-plus-fill"></i>
+                                </div>
+                            {% elif notification.type == 'friend_request_accepted' %}
+                                <div class="notification-icon bg-success text-white rounded-circle p-2 me-3">
+                                    <i class="bi bi-person-check-fill"></i>
+                                </div>
+                            {% else %}
+                                <div class="notification-icon bg-info text-white rounded-circle p-2 me-3">
+                                    <i class="bi bi-bell-fill"></i>
+                                </div>
+                            {% endif %}
+                            
+                            <div class="flex-grow-1">
+                                <p class="mb-1">{{ notification.content }}</p>
+                                <small class="text-muted">
+                                    {{ notification.created_at.strftime('%Y-%m-%d %H:%M') }}
+                                </small>
+                            </div>
+                            
+                            {% if notification.type == 'friend_request' %}
+                                <div class="btn-group">
+                                    <a href="{{ url_for('handle_friend_request', request_id=notification.related_id, action='accept') }}" 
+                                       class="btn btn-success btn-sm">
+                                        <i class="bi bi-check-lg"></i> Accept
+                                    </a>
+                                    <a href="{{ url_for('handle_friend_request', request_id=notification.related_id, action='decline') }}" 
+                                       class="btn btn-outline-danger btn-sm">
+                                        <i class="bi bi-x-lg"></i> Decline
+                                    </a>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+<style>
+    .notification-icon {
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .notification-item {
+        transition: transform 0.3s ease, opacity 0.3s ease;
+    }
+    .notification-item.removing {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    .card {
+        border-left: 4px solid transparent;
+    }
+    .card:hover {
+        border-left-color: var(--bs-primary);
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const socket = io();
+    
+    // Mark individual notification as read
+    function markNotificationRead(notificationId) {
+        fetch(`/mark-notification-read/${notificationId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const notification = document.querySelector(`[data-notification-id="${notificationId}"]`);
+                    if (notification) {
+                        notification.classList.add('removing');
+                        setTimeout(() => {
+                            notification.remove();
+                            checkEmptyState();
+                        }, 300);
+                    }
+                }
+            });
+    }
+    
+    // Mark all notifications as read
+    document.getElementById('markAllRead')?.addEventListener('click', function() {
+        const notifications = document.querySelectorAll('.notification-item');
+        const notificationIds = Array.from(notifications).map(n => n.dataset.notificationId);
+        
+        socket.emit('mark_notifications_read', { notification_ids: notificationIds });
+        
+        notifications.forEach(notification => {
+            notification.classList.add('removing');
+        });
+        
+        setTimeout(() => {
+            notifications.forEach(n => n.remove());
+            checkEmptyState();
+        }, 300);
+    });
+    
+    // Check if there are no notifications and show empty state
+    function checkEmptyState() {
+        const notificationList = document.querySelector('.notification-list');
+        if (!notificationList.children.length) {
+            const emptyState = document.createElement('div');
+            emptyState.className = 'alert alert-info animate__animated animate__fadeIn';
+            emptyState.innerHTML = '<i class="bi bi-info-circle"></i> No new notifications.';
+            notificationList.parentElement.appendChild(emptyState);
+            
+            // Remove the mark all read button
+            document.getElementById('markAllRead')?.remove();
+        }
+    }
+    
+    // Listen for new notifications
+    socket.on('new_notification', function(data) {
+        // Remove empty state if it exists
+        const emptyState = document.querySelector('.alert-info');
+        if (emptyState) {
+            emptyState.remove();
+        }
+        
+        // Create new notification element
+        const notification = document.createElement('div');
+        notification.className = 'card mb-3 notification-item animate__animated animate__fadeIn';
+        notification.innerHTML = `
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="notification-icon bg-primary text-white rounded-circle p-2 me-3">
+                        <i class="bi bi-bell-fill"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                        <p class="mb-1">${data.content}</p>
+                        <small class="text-muted">Just now</small>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Add to notification list
+        const notificationList = document.querySelector('.notification-list');
+        notificationList.insertBefore(notification, notificationList.firstChild);
+        
+        // Show mark all read button if it doesn't exist
+        if (!document.getElementById('markAllRead')) {
+            const markAllButton = document.createElement('button');
+            markAllButton.id = 'markAllRead';
+            markAllButton.className = 'btn btn-outline-primary float-end';
+            markAllButton.innerHTML = '<i class="bi bi-check-all"></i> Mark All Read';
+            document.querySelector('h2').appendChild(markAllButton);
+        }
+    });
+});
+</script>
+{% endblock %}

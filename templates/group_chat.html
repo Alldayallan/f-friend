@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+
+{% block title %}Group Chats{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row">
+        <!-- Group List Sidebar -->
+        <div class="col-md-4 mb-4">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Your Groups</h5>
+                    <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createGroupModal">
+                        <i class="bi bi-plus-lg"></i> New Group
+                    </button>
+                </div>
+                <div class="list-group list-group-flush">
+                    {% if current_user.chat_groups %}
+                        {% for group in current_user.chat_groups %}
+                            <a href="{{ url_for('group_chat', group_id=group.id) }}" 
+                               class="list-group-item list-group-item-action {% if active_group and active_group.id == group.id %}active{% endif %}">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <h6 class="mb-1">{{ group.name }}</h6>
+                                    <small>{{ group.members|length }} members</small>
+                                </div>
+                                <small class="text-body-secondary">Created by: {{ group.creator.username }}</small>
+                            </a>
+                        {% endfor %}
+                    {% else %}
+                        <div class="list-group-item text-center text-muted">
+                            <p>No groups yet</p>
+                            <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createGroupModal">
+                                Create your first group
+                            </button>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Area -->
+        <div class="col-md-8">
+            {% if active_group %}
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="mb-0">{{ active_group.name }}</h5>
+                            <small class="text-muted">{{ active_group.members|length }} members</small>
+                        </div>
+                        <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#groupMembersModal">
+                            <i class="bi bi-people"></i> Members
+                        </button>
+                    </div>
+                    <div class="card-body chat-messages" style="height: 400px; overflow-y: auto;">
+                        {% for message in messages %}
+                            <div class="message mb-3 {% if message.sender_id == current_user.id %}text-end{% endif %}">
+                                <small class="text-muted">{{ message.sender.username }}</small>
+                                <div class="message-content p-2 rounded {% if message.sender_id == current_user.id %}bg-primary text-white{% else %}bg-light{% endif %}">
+                                    {{ message.content }}
+                                    {% if message.media_url %}
+                                        <div class="mt-2">
+                                            {% if message.media_type == 'image' %}
+                                                <img src="{{ message.media_url }}" class="img-fluid rounded" alt="Shared image">
+                                            {% endif %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                <small class="text-muted">{{ message.created_at.strftime('%H:%M') }}</small>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    <div class="card-footer">
+                        <form id="messageForm" class="d-flex gap-2">
+                            <input type="text" class="form-control" id="messageInput" placeholder="Type your message...">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-send"></i>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            {% else %}
+                <div class="card">
+                    <div class="card-body text-center">
+                        <h5>Welcome to Group Chat!</h5>
+                        <p>Select a group from the sidebar or create a new one to start chatting.</p>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Create Group Modal -->
+<div class="modal fade" id="createGroupModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Create New Group</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="{{ url_for('create_group') }}" method="POST">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="groupName" class="form-label">Group Name</label>
+                        <input type="text" class="form-control" id="groupName" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Add Members</label>
+                        <div class="friend-list" style="max-height: 200px; overflow-y: auto;">
+                            {% for friend in current_user.friends %}
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="members[]" value="{{ friend.id }}" id="friend{{ friend.id }}">
+                                    <label class="form-check-label" for="friend{{ friend.id }}">
+                                        {{ friend.username }}
+                                    </label>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Group</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Group Members Modal -->
+<div class="modal fade" id="groupMembersModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Group Members</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                {% if active_group %}
+                    <div class="list-group">
+                        {% for member in active_group.members %}
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    {% if member.profile_picture %}
+                                        <img src="{{ member.profile_picture }}" class="rounded-circle me-2" width="32" height="32">
+                                    {% endif %}
+                                    {{ member.username }}
+                                    {% if member.id == active_group.created_by %}
+                                        <span class="badge bg-primary">Admin</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const socket = io();
+{% if active_group %}
+    const groupId = {{ active_group.id }};
+    
+    socket.on('connect', () => {
+        socket.emit('join_group', { group_id: groupId });
+    });
+
+    socket.on('group_message', (data) => {
+        const messagesDiv = document.querySelector('.chat-messages');
+        const isCurrentUser = data.sender_id === {{ current_user.id }};
+        
+        const messageHtml = `
+            <div class="message mb-3 ${isCurrentUser ? 'text-end' : ''}">
+                <small class="text-muted">${data.sender_username}</small>
+                <div class="message-content p-2 rounded ${isCurrentUser ? 'bg-primary text-white' : 'bg-light'}">
+                    ${data.content}
+                    ${data.media_url ? `
+                        <div class="mt-2">
+                            ${data.media_type === 'image' ? `
+                                <img src="${data.media_url}" class="img-fluid rounded" alt="Shared image">
+                            ` : ''}
+                        </div>
+                    ` : ''}
+                </div>
+                <small class="text-muted">${new Date(data.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</small>
+            </div>
+        `;
+        
+        messagesDiv.insertAdjacentHTML('beforeend', messageHtml);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    });
+
+    document.getElementById('messageForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const input = document.getElementById('messageInput');
+        const content = input.value.trim();
+        
+        if (content) {
+            socket.emit('group_message', {
+                group_id: groupId,
+                content: content
+            });
+            input.value = '';
+        }
+    });
+{% endif %}
+</script>
+{% endblock %}

@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+
+{% block title %}Friend Map{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-md-9">
+            <div class="card">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Nearby Friends Map</h5>
+                    <div>
+                        <button class="btn btn-outline-light btn-sm" id="satelliteView">
+                            <i class="bi bi-satellite"></i> Satellite
+                        </button>
+                        <button class="btn btn-outline-light btn-sm" id="terrainView">
+                            <i class="bi bi-map"></i> Terrain
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div id="map" style="height: 600px;"></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Nearby Friends</h5>
+                </div>
+                <div class="card-body">
+                    <div id="nearbyFriendsList" class="list-group list-group-flush">
+                        <!-- Friends will be populated dynamically -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block head %}
+<!-- Add Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+<style>
+    .friend-marker {
+        animation: bounce 0.5s ease infinite alternate;
+    }
+    @keyframes bounce {
+        from { transform: translateY(0); }
+        to { transform: translateY(-10px); }
+    }
+    .friend-popup {
+        text-align: center;
+    }
+    .friend-popup img {
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        margin-bottom: 10px;
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<!-- Add Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize map
+    const map = L.map('map').setView([37.7749, -122.4194], 13);
+    let currentMapLayer = 'streets';
+
+    // Add default street layer
+    const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    // Satellite layer
+    const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: '© Esri'
+    });
+
+    // Updated Terrain layer with a more reliable source
+    const terrainLayer = L.tileLayer('https://tile.thunderforest.com/landscape/{z}/{x}/{y}.png?apikey=your-api-key', {
+        attribution: '© OpenStreetMap contributors, © Thunderforest'
+    });
+
+    // View toggle handlers
+    document.getElementById('satelliteView').addEventListener('click', function() {
+        if (currentMapLayer !== 'satellite') {
+            map.removeLayer(streetLayer);
+            map.removeLayer(terrainLayer);
+            satelliteLayer.addTo(map);
+            currentMapLayer = 'satellite';
+        }
+    });
+
+    document.getElementById('terrainView').addEventListener('click', function() {
+        if (currentMapLayer !== 'terrain') {
+            map.removeLayer(streetLayer);
+            map.removeLayer(satelliteLayer);
+            terrainLayer.addTo(map);
+            currentMapLayer = 'terrain';
+        }
+    });
+
+    // WebSocket connection for real-time updates
+    const socket = io();
+    const markers = {};
+
+    socket.on('friend_location_update', function(data) {
+        updateFriendMarker(data);
+    });
+
+    function updateFriendMarker(friend) {
+        if (markers[friend.id]) {
+            markers[friend.id].setLatLng([friend.latitude, friend.longitude]);
+        } else {
+            const markerHtml = `
+                <div class="friend-marker">
+                    <i class="bi bi-person-fill text-primary" style="font-size: 2rem;"></i>
+                </div>`;
+
+            const icon = L.divIcon({
+                html: markerHtml,
+                className: 'custom-div-icon',
+                iconSize: [30, 30],
+                iconAnchor: [15, 30]
+            });
+
+            const marker = L.marker([friend.latitude, friend.longitude], { icon: icon })
+                .addTo(map);
+
+            const popupContent = `
+                <div class="friend-popup">
+                    ${friend.profile_picture ? 
+                        `<img src="${friend.profile_picture}" alt="${friend.username}">` :
+                        '<i class="bi bi-person-circle" style="font-size: 2rem;"></i>'}
+                    <h6>${friend.username}</h6>
+                    <button class="btn btn-sm btn-primary start-chat" data-user-id="${friend.id}">
+                        Chat Now
+                    </button>
+                </div>`;
+
+            marker.bindPopup(popupContent);
+            markers[friend.id] = marker;
+            updateNearbyFriendsList();
+        }
+    }
+
+    function updateNearbyFriendsList() {
+        const friendsList = document.getElementById('nearbyFriendsList');
+        friendsList.innerHTML = '';
+
+        Object.values(markers).forEach(marker => {
+            const friend = marker.friend;
+            const distance = map.distance(map.getCenter(), marker.getLatLng());
+            const distanceKm = (distance / 1000).toFixed(1);
+
+            const friendElement = document.createElement('a');
+            friendElement.href = '#';
+            friendElement.className = 'list-group-item list-group-item-action d-flex align-items-center';
+            friendElement.innerHTML = `
+                <div class="me-3">
+                    ${friend.profile_picture ? 
+                        `<img src="${friend.profile_picture}" class="rounded-circle" style="width: 40px; height: 40px;">` :
+                        '<i class="bi bi-person-circle" style="font-size: 2rem;"></i>'}
+                </div>
+                <div>
+                    <h6 class="mb-0">${friend.username}</h6>
+                    <small class="text-muted">${distanceKm}km away</small>
+                </div>`;
+
+            friendElement.addEventListener('click', () => {
+                map.setView(marker.getLatLng(), 15);
+                marker.openPopup();
+            });
+
+            friendsList.appendChild(friendElement);
+        });
+    }
+
+    // Initial friend locations fetch
+    fetch('/api/friend-locations')
+        .then(response => response.json())
+        .then(friends => {
+            friends.forEach(updateFriendMarker);
+        });
+
+    // Handle chat button clicks in popups
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('start-chat')) {
+            const userId = e.target.dataset.userId;
+            window.location.href = `/chat/${userId}`;
+        }
+    });
+
+    // Update nearby friends list when map moves
+    map.on('moveend', updateNearbyFriendsList);
+});
+</script>
+{% endblock %}
