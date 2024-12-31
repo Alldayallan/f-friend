@@ -787,8 +787,11 @@ def messages():
     # Combine both subqueries to get all unique user IDs
     user_ids = [id[0] for id in sent_messages.union(received_messages).all()]
 
-    # Get userobjects for these IDs and all friends
-    friends = current_user.friends.all()  # Get all friends using the relationship
+    # Get user objects for these IDs
+    chat_partners = User.query.filter(User.id.in_(user_ids)).all()
+
+    # Get all friends using the relationship
+    friends = current_user.friends.all()
 
     return render_template('messages.html', chat_partners=chat_partners, friends=friends)
 
